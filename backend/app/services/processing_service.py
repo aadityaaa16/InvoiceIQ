@@ -140,6 +140,7 @@ class InvoiceProcessor:
 
         self._apply_extraction(invoice, extracted)
         invoice.failure_reason = None
+        invoice.processed_at = datetime.now(UTC)
         with log_step("validate", invoice_id):
             await self._validate_and_decide(session, invoice, extracted)
         await session.commit()

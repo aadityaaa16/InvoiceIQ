@@ -88,7 +88,7 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 # These libraries ship without type hints
-module = ["celery.*", "kombu.*", "pytesseract.*", "pdf2image.*", "boto3.*", "botocore.*", "slowapi.*"]
+module = ["celery.*", "kombu.*", "pytesseract.*", "pdf2image.*", "boto3.*", "botocore.*", "slowapi.*", "openpyxl.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
