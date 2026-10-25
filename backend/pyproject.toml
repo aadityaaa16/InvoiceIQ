@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "invoiceiq"
+version = "0.1.0"
+description = "AI-powered invoice processing and GST reconciliation API"
+requires-python = ">=3.11"
+dependencies = [
+    # --- Web framework ---
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",          # ASGI server that runs FastAPI
+    "python-multipart>=0.0.12",         # required by FastAPI for file uploads (multipart/form-data)
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",           # loads config from environment variables / .env
+    "email-validator>=2.2",             # required by Pydantic's EmailStr
+
+    # --- Database ---
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",                    # async PostgreSQL driver used by the API
+    "alembic>=1.14",                    # schema migrations
+
+    # --- Background jobs, cache, rate limiting ---
+    "celery[redis]>=5.4",
+    "redis>=5.2",                       # includes redis.asyncio client
+    "slowapi>=0.1.9",
+
+    # --- Auth ---
+    "pyjwt>=2.10",
+    "bcrypt>=4.2",                      # used directly; passlib is unmaintained and breaks on bcrypt 4.1+
+
+    # --- File storage (MinIO / S3 compatible) ---
+    "boto3>=1.35",
+
+    # --- OCR ---
+    "pytesseract>=0.3.13",
+    "pdf2image>=1.17",
+    "pillow>=11.0",
+
+    # --- Reconciliation (GSTR-2B Excel files) ---
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "httpx>=0.27",                      # async test client for FastAPI
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# ---------------------------------------------------------------------------
+# Ruff: linter + formatter (replaces flake8, isort and black)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle errors and warnings
+    "F",        # pyflakes (unused imports, undefined names)
+    "I",        # import sorting
+    "B",        # bugbear (common bug patterns)
+    "UP",       # pyupgrade (modern syntax, e.g. X | None instead of Optional[X])
+    "SIM",      # simplifications
+]
+# B008: FastAPI relies on function calls in defaults, e.g. Depends(get_db)
+ignore = ["B008"]
+
+# ---------------------------------------------------------------------------
+# mypy: static type checking
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# These libraries ship without type hints
+module = ["celery.*", "pytesseract.*", "pdf2image.*", "boto3.*", "botocore.*", "slowapi.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"                   # async test functions run without a decorator on each
+# One event loop for the whole test session: the DB engine and Redis client hold
+# connections bound to a loop, so tests and fixtures must share it.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"

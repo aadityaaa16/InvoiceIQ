@@ -1,0 +1,107 @@
+# Local development infrastructure for InvoiceIQ.
+#
+#   docker compose up -d        start everything in the background
+#   docker compose ps           show status and health
+#   docker compose logs -f      follow logs
+#   docker compose down         stop (data is kept in volumes)
+#   docker compose down -v      stop AND delete all data
+#
+# Services: postgres (5432), redis (6379), seaweedfs S3 API (8333)
+#
+# ${VARS} are read from the .env file next to this file.
+# The api, worker, flower and frontend services are added in later phases.
+
+services:
+  postgres:
+    # Pinned major version + small Alpine-based image. Never use :latest for a database —
+    # an unexpected major upgrade can make existing data files unreadable.
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"            # host:container — lets the API on your machine connect
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # data survives container restarts
+    healthcheck:
+      # Other services can wait until Postgres actually accepts connections,
+      # not just until the container has started.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    # Append-only file: Redis writes every change to disk, so queued Celery jobs
+    # are not lost if the container restarts.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  seaweedfs:
+    # S3-compatible object storage (open source, Apache-2.0). The backend talks to it
+    # with boto3 over the S3 API, so the same code works against AWS S3 or MinIO.
+    # (We originally planned MinIO, but MinIO stopped publishing free Docker images in 2025.)
+    image: chrislusf/seaweedfs:4.00
+    restart: unless-stopped
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    # SeaweedFS reads S3 credentials from a JSON file. We generate that file from
+    # environment variables at startup so no secret is ever committed to the repo.
+    # ($$ escapes $ so the container's shell, not docker compose, expands the variable.)
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /etc/seaweedfs
+        printf '{"identities":[{"name":"admin","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' \
+          "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /etc/seaweedfs/s3.json
+        # -ip.bind=0.0.0.0: listen on all interfaces. By default SeaweedFS binds only to the
+        # container's internal IP, which breaks the health check and Docker port forwarding.
+        exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=1024 \
+          -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "8333:8333"            # S3 API (used by the backend and presigned URLs)
+    volumes:
+      - seaweedfs_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8333/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-off job: creates the invoices bucket once storage is healthy, then exits.
+  # Uses the official AWS CLI, which also proves the S3 compatibility is real.
+  # Keeping this in infrastructure means the API never needs rights to create buckets.
+  storage-init:
+    image: amazon/aws-cli:2.27.0
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        aws --endpoint-url http://seaweedfs:8333 s3api head-bucket --bucket ${S3_BUCKET} 2>/dev/null \
+          || aws --endpoint-url http://seaweedfs:8333 s3 mb s3://${S3_BUCKET}
+        echo "bucket ${S3_BUCKET} ready"
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:
+  seaweedfs_data:
