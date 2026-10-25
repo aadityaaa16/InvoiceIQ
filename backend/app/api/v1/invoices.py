@@ -82,3 +82,11 @@ async def get_invoice_file(
 ) -> FileUrlResponse:
     """Short-lived presigned URL to view the original document."""
     return await service.get_file_url(user, invoice_id)
+
+
+@router.post("/{invoice_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+async def retry_invoice(
+    invoice_id: uuid.UUID, user: CurrentUser, service: InvoiceServiceDep
+) -> InvoiceStatusRead:
+    """Re-run processing for a failed invoice."""
+    return await service.retry(user, invoice_id)

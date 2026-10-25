@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     # Allowed rounding difference (in rupees) when checking that totals add up
     AMOUNT_TOLERANCE: Decimal = Decimal("1.00")
     MAX_TASK_RETRIES: int = 3
+    RETRY_BACKOFF_SECONDS: int = 5  # delays: 5s, 10s, 20s (+ jitter)
+    # A "processing" invoice untouched for this long is assumed to belong to a crashed
+    # worker and may be claimed again.
+    PROCESSING_STALE_AFTER_SECONDS: int = 900
 
     # ------------------------------------------------------------------
     # Validators

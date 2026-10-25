@@ -268,3 +268,50 @@ async def test_unknown_invoice_returns_404(client: AsyncClient) -> None:
     token = (await register(client))["access_token"]
     response = await client.get(f"/api/v1/invoices/{uuid.uuid4()}", headers=auth(token))
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------- retry
+
+
+async def test_retry_requeues_failed_invoice(
+    client: AsyncClient, db_session: AsyncSession, task_queue: FakeTaskQueue
+) -> None:
+    token = (await register(client))["access_token"]
+    me = await _me(client, token)
+    invoice = await make_invoice(
+        db_session,
+        uuid.UUID(me["organization_id"]),
+        uuid.UUID(me["id"]),
+        status=InvoiceStatus.FAILED,
+        failure_reason="OCR failed",
+        retry_count=3,
+    )
+
+    response = await client.post(f"/api/v1/invoices/{invoice.id}/retry", headers=auth(token))
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "queued"
+    assert response.json()["failure_reason"] is None
+    assert task_queue.enqueued == [invoice.id]
+
+
+async def test_retry_rejects_non_failed_invoice(
+    client: AsyncClient, task_queue: FakeTaskQueue
+) -> None:
+    token = (await register(client))["access_token"]
+    invoice_id = (await _upload(client, token, PDF)).json()["id"]  # status: queued
+
+    response = await client.post(f"/api/v1/invoices/{invoice_id}/retry", headers=auth(token))
+
+    assert response.status_code == 409
+    assert len(task_queue.enqueued) == 1  # only the original upload
+
+
+async def test_retry_other_organization_returns_404(client: AsyncClient) -> None:
+    acme = (await register(client, email="a@acme.com", organization_name="Acme"))["access_token"]
+    globex = (await register(client, email="g@globex.com", organization_name="Globex"))[
+        "access_token"
+    ]
+    invoice_id = (await _upload(client, acme, PDF)).json()["id"]
+    response = await client.post(f"/api/v1/invoices/{invoice_id}/retry", headers=auth(globex))
+    assert response.status_code == 404

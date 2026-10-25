@@ -4,9 +4,12 @@ celery -A app.workers.celery_app worker --loglevel=info --pool=solo   (Windows)
 celery -A app.workers.celery_app worker --loglevel=info               (Linux / Docker)
 """
 
-from celery import Celery
+from typing import Any
+
+from celery import Celery, signals
 
 from app.core.config import settings
+from app.core.logging import request_id_var, setup_logging
 
 # Task names live here (not in tasks.py) so the API can enqueue by name with
 # send_task without importing worker code and its OCR dependencies.
@@ -33,3 +36,15 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     result_expires=3600,
 )
+
+
+@signals.setup_logging.connect
+def _configure_logging(**_: Any) -> None:
+    """Use our JSON logging in the worker too (instead of Celery's default format)."""
+    setup_logging(settings.LOG_LEVEL)
+
+
+@signals.task_prerun.connect
+def _set_task_id_as_request_id(task_id: str, **_: Any) -> None:
+    """Tag every log line from a task with its task id, like request ids in the API."""
+    request_id_var.set(task_id)

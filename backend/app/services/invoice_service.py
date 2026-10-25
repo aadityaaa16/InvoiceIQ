@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import (
     BadRequestError,
+    ConflictError,
     NotFoundError,
     PayloadTooLargeError,
     UnsupportedFileTypeError,
@@ -119,3 +120,21 @@ class InvoiceService:
         expires_in = settings.PRESIGNED_URL_EXPIRE_SECONDS
         url = await self.storage.presigned_url(invoice.file_key, expires_in)
         return FileUrlResponse(url=url, expires_in=expires_in)
+
+    async def retry(self, user: User, invoice_id: uuid.UUID) -> InvoiceStatusRead:
+        """Re-enqueue a failed invoice. Conditional UPDATE, so two clicks can't enqueue twice."""
+        if not await self.invoices.requeue_failed(user.organization_id, invoice_id):
+            if await self.invoices.get(user.organization_id, invoice_id) is None:
+                raise NotFoundError("Invoice not found")
+            raise ConflictError("Only failed invoices can be retried")
+        await self.session.commit()
+        try:
+            await self.tasks.enqueue_invoice_processing(invoice_id)
+        except Exception:
+            logger.exception("Failed to enqueue invoice", extra={"invoice_id": str(invoice_id)})
+            invoice = await self.invoices.get(user.organization_id, invoice_id)
+            if invoice is not None:
+                invoice.status = InvoiceStatus.FAILED
+                invoice.failure_reason = "Could not queue the invoice for processing; please retry"
+                await self.session.commit()
+        return await self.get_status(user, invoice_id)

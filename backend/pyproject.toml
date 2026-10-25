@@ -38,6 +38,9 @@ dependencies = [
     "pdf2image>=1.17",
     "pillow>=11.0",
 
+    # --- LLM ---
+    "google-genai>=1.0",                # Gemini SDK (structured JSON output)
+
     # --- Reconciliation (GSTR-2B Excel files) ---
     "openpyxl>=3.1",
 ]
@@ -85,7 +88,7 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 # These libraries ship without type hints
-module = ["celery.*", "pytesseract.*", "pdf2image.*", "boto3.*", "botocore.*", "slowapi.*"]
+module = ["celery.*", "kombu.*", "pytesseract.*", "pdf2image.*", "boto3.*", "botocore.*", "slowapi.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

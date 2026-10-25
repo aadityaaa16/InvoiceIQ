@@ -6,10 +6,11 @@
 #   docker compose down         stop (data is kept in volumes)
 #   docker compose down -v      stop AND delete all data
 #
-# Services: postgres (5432), redis (6379), seaweedfs S3 API (8333)
+# Services: postgres (5432), redis (6379), seaweedfs S3 API (8333),
+#           api (8000), worker, flower (5555)
 #
 # ${VARS} are read from the .env file next to this file.
-# The api, worker, flower and frontend services are added in later phases.
+# The frontend service is added in Phase 7.
 
 services:
   postgres:
@@ -100,6 +101,67 @@ services:
           || aws --endpoint-url http://seaweedfs:8333 s3 mb s3://${S3_BUCKET}
         echo "bucket ${S3_BUCKET} ready"
     restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Application services (one image, built from backend/Dockerfile)
+  # ---------------------------------------------------------------------------
+  api:
+    build: ./backend
+    image: invoiceiq-backend
+    restart: unless-stopped
+    env_file: .env
+    # Inside the Docker network, services reach each other by service name, not
+    # localhost. `environment` overrides the localhost values from .env.
+    environment: &internal-hosts
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      S3_ENDPOINT_URL: http://seaweedfs:8333
+      # S3_PUBLIC_ENDPOINT_URL stays http://localhost:8333: presigned URLs are for the browser.
+      WATCHFILES_FORCE_POLLING: "true"   # file-change events don't cross Windows bind mounts
+    # Local dev convenience: apply migrations on start, auto-reload on code changes.
+    # (In production, migrations run once as a separate release step, not per replica.)
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+
+  worker:
+    image: invoiceiq-backend
+    restart: unless-stopped
+    env_file: .env
+    environment: *internal-hosts
+    # concurrency=2: two invoices processed in parallel (OCR is CPU-heavy).
+    # No auto-reload: restart after code changes with `docker compose restart worker`.
+    command: celery -A app.workers.celery_app worker --loglevel=INFO --concurrency=2
+    volumes:
+      - ./backend/app:/app/app
+    depends_on:
+      api:
+        condition: service_started   # api builds the shared image and runs migrations
+      redis:
+        condition: service_healthy
+
+  flower:
+    # Web dashboard for Celery: tasks, retries, failures, worker status.
+    image: mher/flower:2.0.1
+    restart: unless-stopped
+    command: celery --broker=redis://redis:6379/1 flower --port=5555
+    ports:
+      - "5555:5555"                  # http://localhost:5555
+    depends_on:
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:
