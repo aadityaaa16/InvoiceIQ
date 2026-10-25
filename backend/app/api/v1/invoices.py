@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentUser, DbSession, ReviewerUser
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.integrations.storage.base import StorageBackend
@@ -18,9 +18,12 @@ from app.schemas.invoice import (
     InvoiceListItem,
     InvoiceListQuery,
     InvoiceStatusRead,
+    InvoiceUpdate,
     InvoiceUploadResponse,
+    RejectRequest,
 )
 from app.services.invoice_service import InvoiceService
+from app.services.review_service import ReviewService
 from app.services.task_queue import TaskQueue, get_task_queue
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -90,3 +93,35 @@ async def retry_invoice(
 ) -> InvoiceStatusRead:
     """Re-run processing for a failed invoice."""
     return await service.retry(user, invoice_id)
+
+
+# ---------------------------------------------------------------- review (reviewer/admin)
+
+
+def get_review_service(db: DbSession) -> ReviewService:
+    return ReviewService(db)
+
+
+ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
+
+
+@router.patch("/{invoice_id}", response_model=InvoiceDetail)
+async def update_invoice(
+    invoice_id: uuid.UUID, data: InvoiceUpdate, user: ReviewerUser, service: ReviewServiceDep
+) -> Invoice:
+    """Correct extracted fields. Validation re-runs; changes are audit-logged."""
+    return await service.update(user, invoice_id, data)
+
+
+@router.post("/{invoice_id}/approve", response_model=InvoiceUploadResponse)
+async def approve_invoice(
+    invoice_id: uuid.UUID, user: ReviewerUser, service: ReviewServiceDep
+) -> Invoice:
+    return await service.approve(user, invoice_id)
+
+
+@router.post("/{invoice_id}/reject", response_model=InvoiceUploadResponse)
+async def reject_invoice(
+    invoice_id: uuid.UUID, data: RejectRequest, user: ReviewerUser, service: ReviewServiceDep
+) -> Invoice:
+    return await service.reject(user, invoice_id, data.reason)

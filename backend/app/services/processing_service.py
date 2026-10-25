@@ -1,6 +1,6 @@
 """The invoice processing pipeline, run by the Celery worker.
 
-    queued --claim--> processing --download--> OCR --> LLM --> needs_review
+    queued --claim--> processing --download--> OCR --> LLM --> validate --> approved / needs_review
                           |                     |       |
                           |                OCRError  LLMRetryableError --> queued (retry)
                           |                     |       |   (after last retry) --> failed
@@ -19,6 +19,7 @@ from contextlib import AbstractAsyncContextManager, contextmanager
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -27,8 +28,13 @@ from app.integrations.ocr.base import OCRError, OCRProvider
 from app.integrations.storage.base import StorageBackend
 from app.models.enums import InvoiceStatus
 from app.models.invoice import Invoice, InvoiceLineItem
+from app.repositories.audit_repository import AuditRepository
 from app.repositories.invoice_repository import InvoiceRepository
+from app.repositories.vendor_repository import VendorRepository
 from app.schemas.extraction import ExtractedInvoice
+from app.services.invoice_rules import can_auto_approve, check_invoice
+from app.services.validation import ValidationIssue
+from app.utils.gstin import is_valid_gstin, normalize_gstin
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +42,7 @@ SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
 class ProcessingOutcome(StrEnum):
-    COMPLETED = "completed"  # extracted; now needs_review (Phase 5 adds auto-approval)
+    COMPLETED = "completed"  # extracted and validated: approved or needs_review
     SKIPPED = "skipped"  # not claimable: already processed or being processed
     RETRY = "retry"  # temporary failure; invoice re-queued, task should retry later
     FAILED = "failed"  # permanent failure; invoice marked failed
@@ -133,15 +139,66 @@ class InvoiceProcessor:
             return await self._fail(session, invoice, "Unexpected processing error")
 
         self._apply_extraction(invoice, extracted)
-        # Phase 5 inserts rule-based validation, vendor matching and auto-approval here.
-        invoice.status = InvoiceStatus.NEEDS_REVIEW
         invoice.failure_reason = None
+        with log_step("validate", invoice_id):
+            await self._validate_and_decide(session, invoice, extracted)
         await session.commit()
         logger.info(
-            "Invoice extracted",
-            extra={"invoice_id": str(invoice.id), "confidence": invoice.confidence_score},
+            "Invoice processed",
+            extra={
+                "invoice_id": str(invoice.id),
+                "status": invoice.status,
+                "confidence": invoice.confidence_score,
+                "issues": len(invoice.validation_errors or []),
+            },
         )
         return ProcessingOutcome.COMPLETED
+
+    async def _validate_and_decide(
+        self, session: AsyncSession, invoice: Invoice, extracted: ExtractedInvoice
+    ) -> None:
+        """Steps 5-7: vendor matching, rule-based validation, auto-approve or review."""
+        gstin = normalize_gstin(extracted.vendor_gstin) if extracted.vendor_gstin else None
+        # Step 6: only a GSTIN that passes the checksum becomes a vendor. A misread one
+        # would otherwise create a bogus vendor for every OCR error.
+        if gstin and is_valid_gstin(gstin):
+            vendor = await VendorRepository(session).get_or_create(
+                invoice.organization_id, gstin, extracted.vendor_name or gstin
+            )
+            invoice.vendor_id = vendor.id
+        await session.flush()
+
+        # Step 5: business rules + duplicate check.
+        issues = await check_invoice(session, invoice, gstin)
+        invoice.validation_errors = [issue.to_dict() for issue in issues]
+
+        # Step 7: decide.
+        if not can_auto_approve(issues, invoice.confidence_score):
+            invoice.status = InvoiceStatus.NEEDS_REVIEW
+            return
+        try:
+            # SAVEPOINT: if the partial unique index rejects the approval (a duplicate
+            # approved concurrently by another worker), only this step is undone.
+            async with session.begin_nested():
+                invoice.status = InvoiceStatus.APPROVED
+                invoice.approved_at = datetime.now(UTC)
+                await session.flush()
+        except IntegrityError:
+            await session.refresh(invoice)
+            invoice.status = InvoiceStatus.NEEDS_REVIEW
+            invoice.validation_errors = [
+                ValidationIssue(
+                    "possible_duplicate", "invoice_number", "A matching invoice was just approved"
+                ).to_dict()
+            ]
+            return
+        await AuditRepository(session).record(
+            organization_id=invoice.organization_id,
+            user_id=None,  # system action
+            entity_id=invoice.id,
+            action="auto_approve",
+            new_values={"status": "approved", "confidence": invoice.confidence_score},
+        )
 
     @staticmethod
     def _apply_extraction(invoice: Invoice, extracted: ExtractedInvoice) -> None:

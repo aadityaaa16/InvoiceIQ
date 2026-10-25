@@ -68,7 +68,9 @@ async def test_happy_path_extracts_and_stores_everything(
 
     assert outcome == ProcessingOutcome.COMPLETED
     invoice = queued_invoice
-    assert invoice.status == InvoiceStatus.NEEDS_REVIEW
+    assert invoice.status == InvoiceStatus.APPROVED  # clean + confident -> auto-approved
+    assert invoice.validation_errors == []
+    assert invoice.vendor_id is not None
     assert invoice.invoice_number == "INV-001"
     assert invoice.total_amount == Decimal("1180")
     assert invoice.cgst == invoice.sgst == Decimal("90")
@@ -143,7 +145,7 @@ async def test_retry_then_success(
 
     assert await processor.process(queued_invoice.id, attempt=0) == ProcessingOutcome.RETRY
     assert await processor.process(queued_invoice.id, attempt=1) == ProcessingOutcome.COMPLETED
-    assert queued_invoice.status == InvoiceStatus.NEEDS_REVIEW
+    assert queued_invoice.status == InvoiceStatus.APPROVED
     assert queued_invoice.failure_reason is None
 
 
@@ -211,3 +213,68 @@ def test_retry_delay_grows_exponentially() -> None:
     assert 5 <= delays[0] < 6
     assert 10 <= delays[1] < 11
     assert 20 <= delays[2] < 21
+
+
+# ---------------------------------------------------------------- Phase 5: decisions
+
+
+async def _process_with(
+    db_session: AsyncSession, storage: FakeStorage, invoice: Invoice, **overrides: object
+) -> Invoice:
+    llm = FakeLLM(sample_extraction(**overrides))
+    await make_processor(db_session, storage, FakeOCR(), llm).process(invoice.id)
+    return invoice
+
+
+def _codes(invoice: Invoice) -> list[str]:
+    return [error["code"] for error in invoice.validation_errors or []]
+
+
+async def test_low_confidence_goes_to_review(
+    db_session: AsyncSession, storage: FakeStorage, queued_invoice: Invoice
+) -> None:
+    confidence = sample_extraction().confidence.model_dump() | {"totals": 0.5}
+    invoice = await _process_with(db_session, storage, queued_invoice, confidence=confidence)
+    assert invoice.status == InvoiceStatus.NEEDS_REVIEW
+    assert invoice.validation_errors == []  # rules pass; only confidence is too low
+
+
+async def test_rule_violation_goes_to_review_with_errors(
+    db_session: AsyncSession, storage: FakeStorage, queued_invoice: Invoice
+) -> None:
+    invoice = await _process_with(db_session, storage, queued_invoice, total_amount=2000)
+    assert invoice.status == InvoiceStatus.NEEDS_REVIEW
+    assert _codes(invoice) == ["total_mismatch"]
+
+
+async def test_bad_gstin_checksum_creates_no_vendor(
+    db_session: AsyncSession, storage: FakeStorage, queued_invoice: Invoice
+) -> None:
+    invoice = await _process_with(
+        db_session, storage, queued_invoice, vendor_gstin="27AAPFU0939F1ZX"
+    )
+    assert invoice.vendor_id is None
+    assert invoice.status == InvoiceStatus.NEEDS_REVIEW
+    assert "invalid_gstin" in _codes(invoice)
+
+
+async def test_duplicate_invoice_is_flagged_not_approved(
+    db_session: AsyncSession, storage: FakeStorage, queued_invoice: Invoice
+) -> None:
+    first = await _process_with(db_session, storage, queued_invoice)
+    assert first.status == InvoiceStatus.APPROVED
+
+    second = await make_invoice(
+        db_session,
+        first.organization_id,
+        first.uploaded_by,
+        status=InvoiceStatus.QUEUED,
+        invoice_number=None,
+        total_amount=None,
+    )
+    await storage.upload(second.file_key, PDF, "application/pdf")
+    await _process_with(db_session, storage, second)
+
+    assert second.vendor_id == first.vendor_id  # same GSTIN -> same vendor reused
+    assert second.status == InvoiceStatus.NEEDS_REVIEW
+    assert _codes(second) == ["possible_duplicate"]

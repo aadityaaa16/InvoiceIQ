@@ -7,11 +7,12 @@ so no precision is lost on the way to the client (JSON numbers are floats in JS)
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import InvoiceStatus
+from app.schemas.common import GSTIN
 
 
 class _ORMModel(BaseModel):
@@ -105,3 +106,40 @@ class InvoiceListQuery(BaseModel):
         if self.date_from and self.date_to and self.date_from > self.date_to:
             raise ValueError("date_from must be on or before date_to")
         return self
+
+
+NonNegative = Annotated[Decimal, Field(ge=0)]
+
+
+class LineItemInput(BaseModel):
+    description: str = Field(min_length=1)
+    hsn_code: str | None = Field(default=None, max_length=8)
+    quantity: NonNegative | None = None
+    unit_price: NonNegative | None = None
+    tax_rate: Annotated[Decimal, Field(ge=0, le=100)] | None = None
+    amount: NonNegative
+
+
+class InvoiceUpdate(BaseModel):
+    """Reviewer corrections (PATCH): only fields sent are changed; null clears a field."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    vendor_name: str | None = Field(default=None, min_length=1, max_length=255)
+    vendor_gstin: GSTIN | None = None
+    invoice_number: str | None = Field(default=None, min_length=1, max_length=100)
+    invoice_date: date | None = None
+    subtotal: NonNegative | None = None
+    cgst: NonNegative | None = None
+    sgst: NonNegative | None = None
+    igst: NonNegative | None = None
+    total_amount: NonNegative | None = None
+    line_items: list[LineItemInput] | None = None
+
+
+class RejectRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class VendorRead(VendorSummary):
+    created_at: datetime

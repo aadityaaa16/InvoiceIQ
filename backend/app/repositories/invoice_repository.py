@@ -149,3 +149,19 @@ class InvoiceRepository:
             .returning(Invoice.id)
         )
         return result.scalar_one_or_none() is not None
+
+    async def find_duplicate(self, invoice: Invoice) -> uuid.UUID | None:
+        """Another live invoice with the same (organization, vendor, invoice number)?
+        Rejected and failed invoices don't count: they will never be paid."""
+        result = await self.session.execute(
+            select(Invoice.id)
+            .where(
+                Invoice.organization_id == invoice.organization_id,
+                Invoice.vendor_id == invoice.vendor_id,
+                Invoice.invoice_number == invoice.invoice_number,
+                Invoice.id != invoice.id,
+                Invoice.status.not_in([InvoiceStatus.REJECTED, InvoiceStatus.FAILED]),
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
