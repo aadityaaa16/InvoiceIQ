@@ -1,0 +1,438 @@
+{
+  "model": "gemini-2.5-flash",
+  "invoices": 20,
+  "field_accuracy": {
+    "vendor_gstin": 0.7,
+    "invoice_number": 1.0,
+    "invoice_date": 1.0,
+    "subtotal": 1.0,
+    "cgst": 1.0,
+    "sgst": 1.0,
+    "igst": 1.0,
+    "total_amount": 1.0,
+    "line_item_count": 1.0
+  },
+  "fully_correct_rate": 0.7,
+  "by_kind": {
+    "scan": 0.9,
+    "photo": 0.5
+  },
+  "auto_approval_rate": 0.7,
+  "wrong_but_auto_approved": 0,
+  "avg_seconds": 6.42,
+  "avg_ocr_seconds": 0.94,
+  "rows": [
+    {
+      "file": "invoice_001_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.84,
+      "total_seconds": 6.9
+    },
+    {
+      "file": "invoice_002_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 1.22,
+      "total_seconds": 7.49
+    },
+    {
+      "file": "invoice_003_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.7,
+      "total_seconds": 5.15
+    },
+    {
+      "file": "invoice_004_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 1.38,
+      "total_seconds": 5.92
+    },
+    {
+      "file": "invoice_005_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.74,
+      "total_seconds": 5.13
+    },
+    {
+      "file": "invoice_006_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": false,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": false,
+      "auto_approved": false,
+      "issues": [
+        "invalid_gstin"
+      ],
+      "ocr_seconds": 1.41,
+      "total_seconds": 5.61
+    },
+    {
+      "file": "invoice_007_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.68,
+      "total_seconds": 4.72
+    },
+    {
+      "file": "invoice_008_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 1.22,
+      "total_seconds": 5.57
+    },
+    {
+      "file": "invoice_009_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.59,
+      "total_seconds": 8.15
+    },
+    {
+      "file": "invoice_010_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": false,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": false,
+      "auto_approved": false,
+      "issues": [
+        "invalid_gstin"
+      ],
+      "ocr_seconds": 1.17,
+      "total_seconds": 7.26
+    },
+    {
+      "file": "invoice_011_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.57,
+      "total_seconds": 6.52
+    },
+    {
+      "file": "invoice_012_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": false,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": false,
+      "auto_approved": false,
+      "issues": [
+        "invalid_gstin"
+      ],
+      "ocr_seconds": 1.05,
+      "total_seconds": 6.47
+    },
+    {
+      "file": "invoice_013_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.68,
+      "total_seconds": 7.82
+    },
+    {
+      "file": "invoice_014_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 1.6,
+      "total_seconds": 6.32
+    },
+    {
+      "file": "invoice_015_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.54,
+      "total_seconds": 6.95
+    },
+    {
+      "file": "invoice_016_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": false,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": false,
+      "auto_approved": false,
+      "issues": [
+        "invalid_gstin"
+      ],
+      "ocr_seconds": 1.1,
+      "total_seconds": 5.62
+    },
+    {
+      "file": "invoice_017_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": false,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": false,
+      "auto_approved": false,
+      "issues": [
+        "invalid_gstin"
+      ],
+      "ocr_seconds": 0.56,
+      "total_seconds": 8.24
+    },
+    {
+      "file": "invoice_018_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 1.16,
+      "total_seconds": 6.35
+    },
+    {
+      "file": "invoice_019_scan.png",
+      "kind": "scan",
+      "correct": {
+        "vendor_gstin": true,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": true,
+      "auto_approved": true,
+      "issues": [],
+      "ocr_seconds": 0.56,
+      "total_seconds": 4.75
+    },
+    {
+      "file": "invoice_020_photo.png",
+      "kind": "photo",
+      "correct": {
+        "vendor_gstin": false,
+        "invoice_number": true,
+        "invoice_date": true,
+        "subtotal": true,
+        "cgst": true,
+        "sgst": true,
+        "igst": true,
+        "total_amount": true,
+        "line_item_count": true
+      },
+      "all_correct": false,
+      "auto_approved": false,
+      "issues": [
+        "invalid_gstin"
+      ],
+      "ocr_seconds": 1.12,
+      "total_seconds": 7.41
+    }
+  ]
+}
