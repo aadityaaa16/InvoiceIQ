@@ -27,7 +27,10 @@ from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.redis import redis_client  # noqa: E402
 from app.db.session import engine, get_db  # noqa: E402
+from app.integrations.storage.factory import get_storage  # noqa: E402
 from app.main import create_app  # noqa: E402
+from app.services.task_queue import get_task_queue  # noqa: E402
+from tests.fakes import FakeStorage, FakeTaskQueue  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -80,13 +83,28 @@ async def redis() -> AsyncIterator[Redis]:
 
 
 @pytest.fixture
-async def client(db_session: AsyncSession, redis: Redis) -> AsyncIterator[AsyncClient]:
+def storage() -> FakeStorage:
+    return FakeStorage()
+
+
+@pytest.fixture
+def task_queue() -> FakeTaskQueue:
+    return FakeTaskQueue()
+
+
+@pytest.fixture
+async def client(
+    db_session: AsyncSession, redis: Redis, storage: FakeStorage, task_queue: FakeTaskQueue
+) -> AsyncIterator[AsyncClient]:
     """HTTP client that calls the app in-process (no server needed).
 
+    External services are replaced with in-memory fakes via dependency overrides.
     ASGITransport does not run the app's lifespan, so the shared Redis client and
     engine are not closed between tests.
     """
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_storage] = lambda: storage
+    app.dependency_overrides[get_task_queue] = lambda: task_queue
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client

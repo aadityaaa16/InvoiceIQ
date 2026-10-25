@@ -1,8 +1,8 @@
 """Reusable validated field types."""
 
-from typing import Annotated
+from typing import Annotated, Generic, TypeVar
 
-from pydantic import AfterValidator, BeforeValidator, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, BeforeValidator, EmailStr, Field
 
 from app.utils.gstin import is_valid_gstin_format, normalize_gstin
 
@@ -31,3 +31,16 @@ GSTIN = Annotated[
     BeforeValidator(lambda v: normalize_gstin(v) if isinstance(v, str) else v),
     AfterValidator(_check_gstin),
 ]
+
+
+T = TypeVar("T")
+
+
+class Page(BaseModel, Generic[T]):
+    """Paginated list response."""
+
+    items: list[T]
+    total: int  # matching rows across all pages
+    page: int
+    page_size: int
+    pages: int

@@ -88,6 +88,11 @@ plugins = ["pydantic.mypy"]
 module = ["celery.*", "pytesseract.*", "pdf2image.*", "boto3.*", "botocore.*", "slowapi.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# Celery's @task decorator is untyped
+module = ["app.workers.*"]
+disallow_untyped_decorators = false
+
 # ---------------------------------------------------------------------------
 # pytest
 # ---------------------------------------------------------------------------

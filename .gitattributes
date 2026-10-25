@@ -1,0 +1,15 @@
+# Store and check out text files with LF line endings on every OS.
+# Scripts and config used inside Linux containers break with Windows CRLF endings.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files: never convert
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.xlsx binary

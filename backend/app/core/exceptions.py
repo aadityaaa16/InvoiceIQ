@@ -62,6 +62,18 @@ class ConflictError(AppError):
     message = "Resource already exists"
 
 
+class PayloadTooLargeError(AppError):
+    status_code = 413
+    code = "file_too_large"
+    message = "File is too large"
+
+
+class UnsupportedFileTypeError(AppError):
+    status_code = 415
+    code = "unsupported_file_type"
+    message = "Unsupported file type"
+
+
 def error_response(
     status_code: int,
     code: str,
